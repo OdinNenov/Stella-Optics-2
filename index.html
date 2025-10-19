@@ -75,15 +75,22 @@
     <!-- Firebase SDK Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, setDoc, onSnapshot, collection, query, runTransaction, updateDoc, increment, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, onSnapshot, collection, query, runTransaction, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- GLOBAL SETUP & UTILITIES ---
-
-        // Firebase configuration and credentials from the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // --- IMPORTANT: FIREBASE CONFIGURATION ---
+        // TO MAKE THIS WORK ON GITHUB/LOCALLY, YOU MUST REPLACE THESE PLACEHOLDERS
+        // WITH YOUR OWN PROJECT'S PUBLIC CONFIGURATION.
+        // Get this from your Firebase Project Settings -> Web App.
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY_HERE",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        // NOTE: The user ID is generated via Anonymous Auth, which requires Firebase Authentication to be enabled.
 
         // Global Firebase instances
         let app;
@@ -102,12 +109,15 @@
         setLogLevel('error');
 
         /**
-         * Initializes Firebase and authenticates the user.
+         * Initializes Firebase and authenticates the user anonymously.
          */
         async function initializeFirebase() {
-            if (!firebaseConfig) {
-                console.error("Firebase config is missing. Cannot initialize.");
-                document.getElementById('loading-spinner').innerHTML = '<p class="text-red-500">Error: Firebase configuration missing.</p>';
+            if (firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
+                const spinner = document.getElementById('loading-spinner');
+                spinner.innerHTML = `
+                    <p class="text-xl font-bold text-red-600">CONFIGURATION ERROR</p>
+                    <p class="mt-2 text-gray-700">Please update the <code class="bg-gray-200 p-1 rounded">firebaseConfig</code> object in the script with your own Firebase project keys to run this app.</p>
+                `;
                 return;
             }
 
@@ -116,12 +126,8 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
 
-                // Sign in with custom token or anonymously
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // For a GitHub-ready app, we default to anonymous sign-in
+                await signInAnonymously(auth);
 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
@@ -132,23 +138,27 @@
                         setupListeners();
                         render(currentView);
                     } else {
-                        console.log("User signed out or failed to sign in.");
+                        // This case should only happen if the user manually signed out
+                        console.log("User signed out.");
                     }
                 });
 
             } catch (error) {
                 console.error("Firebase Initialization or Auth Error:", error);
-                document.getElementById('loading-spinner').innerHTML = `<p class="text-red-500">Firebase Error: ${error.message}</p>`;
+                document.getElementById('loading-spinner').innerHTML = `<p class="text-red-500">Firebase Error: ${error.message}. Check your configuration and ensure Firestore/Auth are enabled.</p>`;
             }
         }
 
         /**
          * Generates the Firestore collection path for the current user's private data.
+         * The path is organized as: users/{userId}/{collectionName}
          * @param {string} collectionName - Name of the collection (e.g., 'inventory').
          * @returns {string} The full Firestore path.
          */
         function getCollectionPath(collectionName) {
-            return `artifacts/${appId}/users/${currentUserId}/${collectionName}`;
+            // Note: This path structure requires security rules configured like:
+            // allow read, write: if request.auth.uid == userId;
+            return `users/${currentUserId}/${collectionName}`;
         }
 
         /**
@@ -253,7 +263,9 @@
                 closeModal();
             } catch (error) {
                 console.error(`Error adding ${type} item:`, error);
-                alert(`Failed to save. Check console for details.`);
+                // Using a non-alert message box for user feedback
+                modalTitle.textContent = "Error";
+                modalInputs.innerHTML = `<p class="text-red-500">Failed to save data. Check console for details. (Error: ${error.message})</p>`;
             }
         });
 
@@ -345,7 +357,7 @@
                         total += subtotal;
                         priceDisplay.textContent = `$${subtotal.toFixed(2)}`;
 
-                        // Stock check logic
+                        // Stock check logic visual cue
                         if (qty > selectedItem.stock) {
                             qtyInput.classList.add('border-red-500');
                             qtyInput.title = `Only ${selectedItem.stock} in stock!`;
@@ -431,14 +443,15 @@
             // Handle purchase submission
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                document.getElementById('purchase-btn').disabled = true;
-                document.getElementById('purchase-btn').textContent = "Processing...";
+                const purchaseBtn = document.getElementById('purchase-btn');
+                purchaseBtn.disabled = true;
+                purchaseBtn.textContent = "Processing...";
 
                 const clientId = document.getElementById('client-select').value;
                 if (!clientId) {
-                    alert('Please select a client.');
-                    document.getElementById('purchase-btn').disabled = false;
-                    document.getElementById('purchase-btn').textContent = "Simulate Purchase (Reduce Stock)";
+                    alert('Please select a client.'); // Using custom modal in a real app
+                    purchaseBtn.disabled = false;
+                    purchaseBtn.textContent = "Simulate Purchase (Reduce Stock)";
                     return;
                 }
 
@@ -467,37 +480,42 @@
                 });
 
                 if (purchaseItems.length === 0) {
-                    alert('Please add at least one item to the order.');
-                    document.getElementById('purchase-btn').disabled = false;
-                    document.getElementById('purchase-btn').textContent = "Simulate Purchase (Reduce Stock)";
+                    alert('Please add at least one item to the order.'); // Using custom modal in a real app
+                    purchaseBtn.disabled = false;
+                    purchaseBtn.textContent = "Simulate Purchase (Reduce Stock)";
                     return;
                 }
 
                 if (hasStockError) {
-                    alert('Cannot complete order: Insufficient stock for one or more items. Please adjust quantities.');
-                    document.getElementById('purchase-btn').disabled = false;
-                    document.getElementById('purchase-btn').textContent = "Simulate Purchase (Reduce Stock)";
+                    alert('Cannot complete order: Insufficient stock for one or more items. Please adjust quantities.'); // Using custom modal in a real app
+                    purchaseBtn.disabled = false;
+                    purchaseBtn.textContent = "Simulate Purchase (Reduce Stock)";
                     return;
                 }
 
                 const client = clients.find(c => c.id === clientId);
                 const total = calculateTotal();
 
-                await runPurchaseTransaction(clientId, client.name, purchaseItems, total);
-
-                document.getElementById('purchase-btn').disabled = false;
-                document.getElementById('purchase-btn').textContent = "Simulate Purchase (Reduce Stock)";
-                form.reset();
-                itemList.innerHTML = ''; // Clear old rows
-                itemIndex = -1; // Reset index to make the next call 0
-                addNewItemRow(); // Add a single fresh row
-                calculateTotal(); // Recalculate and reset display
-                alert('Purchase Simulated Successfully! Inventory has been updated.');
-                render('orders'); // Switch to orders view
+                try {
+                    await runPurchaseTransaction(clientId, client.name, purchaseItems, total);
+                    alert('Purchase Simulated Successfully! Inventory has been updated.'); // Using custom modal in a real app
+                    form.reset();
+                    itemList.innerHTML = ''; // Clear old rows
+                    itemIndex = -1; // Reset index to make the next call 0
+                    addNewItemRow(); // Add a single fresh row
+                    calculateTotal(); // Recalculate and reset display
+                    render('orders'); // Switch to orders view
+                } catch (e) {
+                    // Error already handled inside runPurchaseTransaction
+                } finally {
+                    purchaseBtn.disabled = false;
+                    purchaseBtn.textContent = "Simulate Purchase (Reduce Stock)";
+                }
             });
 
             // Initial calculation
-            updateItemRow(itemList.querySelector('.item-row'));
+            const initialRow = itemList.querySelector('.item-row');
+            if(initialRow) updateItemRow(initialRow);
         }
 
         /**
@@ -513,7 +531,7 @@
 
             try {
                 await runTransaction(db, async (transaction) => {
-                    // 1. Check stock (already checked in UI but essential for transaction integrity)
+                    // 1. Check stock (essential for transaction integrity)
                     for (const item of items) {
                         const itemRef = doc(db, inventoryCollection, item.id);
                         const itemDoc = await transaction.get(itemRef);
@@ -531,10 +549,9 @@
                     // 2. Decrement inventory stock
                     for (const item of items) {
                         const itemRef = doc(db, inventoryCollection, item.id);
-                        // Using updateDoc with increment is generally safer for concurrent writes,
-                        // but since we read the stock within the transaction, we can write the new value
-                        // which is more explicit for a controlled simulation environment.
-                        const newStock = inventory.find(i => i.id === item.id).stock - item.quantity;
+                        // Find the current stock from the locally cached inventory (safe within a transaction that re-reads before write)
+                        const currentItem = inventory.find(i => i.id === item.id);
+                        const newStock = currentItem.stock - item.quantity;
                         transaction.update(itemRef, { stock: newStock });
                     }
 
@@ -555,7 +572,6 @@
                 console.log("Transaction successfully committed!");
             } catch (e) {
                 console.error("Transaction failed: ", e);
-                alert(`Order processing failed: ${e.message}`);
                 throw e; // Re-throw to indicate failure
             }
         }
@@ -579,7 +595,7 @@
                                     <div class="p-4 flex justify-between items-center hover:bg-gray-50 transition">
                                         <div>
                                             <p class="font-semibold text-gray-800">${i.name}</p>
-                                            <p class="text-sm ${i.stock < 5 ? 'text-red-500' : 'text-gray-500'}">Stock: ${i.stock}</p>
+                                            <p class="text-sm ${i.stock < 5 ? 'text-red-500 font-bold' : 'text-gray-500'}">Stock: ${i.stock}</p>
                                         </div>
                                         <p class="text-lg font-bold text-green-600">$${i.price.toFixed(2)}</p>
                                     </div>
