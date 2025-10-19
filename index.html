@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspiration Machine</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; /* Dark background */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <!-- Main Container -->
+    <div id="app" class="w-full max-w-lg bg-gray-800 p-8 md:p-12 rounded-xl shadow-2xl transition-all duration-300">
+        <h1 class="text-3xl font-bold text-white mb-6 text-center">
+            Daily Inspiration
+        </h1>
+        <!-- Quote Card -->
+        <div class="bg-gray-700 p-6 rounded-lg mb-8 shadow-lg">
+            <p id="quote-text" class="text-xl italic text-gray-200 leading-relaxed min-h-[100px] flex items-center justify-center text-center">
+                Click the button below to get your first dose of inspiration!
+            </p>
+            <p id="quote-author" class="text-right text-sm font-medium text-purple-400 mt-4">- Unknown</p>
+        </div>
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <button id="new-quote-btn" class="flex-grow bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 ease-in-out shadow-md shadow-purple-900/50 transform hover:scale-[1.02]">
+                New Quote
+            </button>
+            <button id="copy-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 ease-in-out shadow-md shadow-gray-900/50">
+                Copy to Clipboard
+            </button>
+        </div>
+        <!-- Status Message Box (for copy confirmation) -->
+        <div id="status-message" class="mt-4 text-center text-green-400 opacity-0 transition-opacity duration-500">
+            Copied successfully!
+        </div>
+    </div>
+    <script>
+        // Array of quotes
+        const quotes = [
+            { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+            { text: "Strive not to be a success, but rather to be of value.", author: "Albert Einstein" },
+            { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+            { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+            { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" }
+        ];
+        let lastIndex = -1;
+        const quoteTextElement = document.getElementById('quote-text');
+        const quoteAuthorElement = document.getElementById('quote-author');
+        const newQuoteBtn = document.getElementById('new-quote-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const statusMessage = document.getElementById('status-message');
+        /**
+         * Selects and displays a random quote, ensuring it is not the same as the last one.
+         */
+        function displayNewQuote() {
+            if (quotes.length === 0) return;
+            let randomIndex;
+            do {
+                randomIndex = Math.floor(Math.random() * quotes.length);
+            } while (randomIndex === lastIndex && quotes.length > 1);
+            const quote = quotes[randomIndex];
+            quoteTextElement.textContent = quote.text;
+            quoteAuthorElement.textContent = `- ${quote.author}`;
+            lastIndex = randomIndex;
+        }
+        /**
+         * Copies the current quote text and author to the clipboard.
+         */
+        function copyQuoteToClipboard() {
+            const quoteContent = `${quoteTextElement.textContent} ${quoteAuthorElement.textContent}`;
+            // Use execCommand for broader compatibility in sandbox environments
+            const tempInput = document.createElement('textarea');
+            tempInput.value = quoteContent;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            try {
+                document.execCommand('copy');
+                showStatusMessage("Copied successfully!");
+            } catch (err) {
+                console.error('Could not copy text: ', err);
+                showStatusMessage("Copy failed. Check console for details.");
+            }
+            document.body.removeChild(tempInput);
+        }
+        /**
+         * Shows a temporary status message in the UI.
+         * @param {string} message - The message to display.
+         */
+        function showStatusMessage(message) {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('opacity-0');
+            statusMessage.classList.add('opacity-100');
+            // Hide the message after 2 seconds
+            setTimeout(() => {
+                statusMessage.classList.remove('opacity-100');
+                statusMessage.classList.add('opacity-0');
+            }, 2000);
+        }
+        // --- Event Listeners and Initial Setup ---
+        // Handle touch/click events for New Quote button
+        newQuoteBtn.addEventListener('click', displayNewQuote);
+        newQuoteBtn.addEventListener('touchend', (e) => { e.preventDefault(); displayNewQuote(); });
+        // Handle touch/click events for Copy button
+        copyBtn.addEventListener('click', copyQuoteToClipboard);
+        copyBtn.addEventListener('touchend', (e) => { e.preventDefault(); copyQuoteToClipboard(); });
+        // Display the first quote when the page loads
+        document.addEventListener('DOMContentLoaded', displayNewQuote);
+    </script>
+</body>
+</html>
