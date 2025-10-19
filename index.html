@@ -3,115 +3,699 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inspiration Machine</title>
+    <title>Inventory & Sales Simulator</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #1f2937; /* Dark background */
+            background-color: #f7f9fb;
+        }
+        .tab-button {
+            transition: all 0.2s;
+        }
+        .tab-button.active {
+            border-bottom: 3px solid #3b82f6;
+            color: #3b82f6;
+            font-weight: 600;
+        }
+        /* Custom scrollbar for better visibility on mobile */
+        .scrollable-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .scrollable-list::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 2px;
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
-    <!-- Main Container -->
-    <div id="app" class="w-full max-w-lg bg-gray-800 p-8 md:p-12 rounded-xl shadow-2xl transition-all duration-300">
-        <h1 class="text-3xl font-bold text-white mb-6 text-center">
-            Daily Inspiration
-        </h1>
-        <!-- Quote Card -->
-        <div class="bg-gray-700 p-6 rounded-lg mb-8 shadow-lg">
-            <p id="quote-text" class="text-xl italic text-gray-200 leading-relaxed min-h-[100px] flex items-center justify-center text-center">
-                Click the button below to get your first dose of inspiration!
-            </p>
-            <p id="quote-author" class="text-right text-sm font-medium text-purple-400 mt-4">- Unknown</p>
+<body class="min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-md sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <h1 class="text-xl font-bold text-gray-800">Sales Dashboard</h1>
+            <p id="user-id-display" class="text-xs text-gray-500 mt-1 truncate">User ID: Loading...</p>
         </div>
-        <!-- Action Buttons -->
-        <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-            <button id="new-quote-btn" class="flex-grow bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 ease-in-out shadow-md shadow-purple-900/50 transform hover:scale-[1.02]">
-                New Quote
-            </button>
-            <button id="copy-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 ease-in-out shadow-md shadow-gray-900/50">
-                Copy to Clipboard
-            </button>
+        <nav class="bg-white border-t border-gray-200">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-around">
+                <button data-view="inventory" class="tab-button py-3 px-3 text-sm text-gray-600 active w-full">Inventory</button>
+                <button data-view="clients" class="tab-button py-3 px-3 text-sm text-gray-600 w-full">Clients</button>
+                <button data-view="purchase" class="tab-button py-3 px-3 text-sm text-gray-600 w-full">New Order</button>
+                <button data-view="orders" class="tab-button py-3 px-3 text-sm text-gray-600 w-full">Orders</button>
+            </div>
+        </nav>
+    </header>
+
+    <main id="app-content" class="flex-grow p-4 max-w-4xl w-full mx-auto">
+        <!-- Content will be injected here -->
+        <div id="loading-spinner" class="text-center p-8">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="mt-4 text-gray-600">Connecting to database...</p>
         </div>
-        <!-- Status Message Box (for copy confirmation) -->
-        <div id="status-message" class="mt-4 text-center text-green-400 opacity-0 transition-opacity duration-500">
-            Copied successfully!
+    </main>
+
+    <!-- Modal for adding new items (shared UI) -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div id="modal-content" class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all">
+            <h3 id="modal-title" class="text-xl font-semibold mb-4 text-gray-800">Add New Item</h3>
+            <form id="add-form">
+                <!-- Inputs will be dynamically generated here -->
+                <div id="modal-inputs" class="space-y-4"></div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition">Save</button>
+                </div>
+            </form>
         </div>
     </div>
-    <script>
-        // Array of quotes
-        const quotes = [
-            { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
-            { text: "Strive not to be a success, but rather to be of value.", author: "Albert Einstein" },
-            { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
-            { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
-            { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" }
-        ];
-        let lastIndex = -1;
-        const quoteTextElement = document.getElementById('quote-text');
-        const quoteAuthorElement = document.getElementById('quote-author');
-        const newQuoteBtn = document.getElementById('new-quote-btn');
-        const copyBtn = document.getElementById('copy-btn');
-        const statusMessage = document.getElementById('status-message');
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, setDoc, onSnapshot, collection, query, runTransaction, updateDoc, increment, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL SETUP & UTILITIES ---
+
+        // Firebase configuration and credentials from the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Global Firebase instances
+        let app;
+        let db;
+        let auth;
+        let currentUserId = null;
+
+        // Data stores
+        let inventory = [];
+        let clients = [];
+        let purchases = [];
+        let isAuthReady = false;
+        let currentView = 'inventory';
+
+        // Set Firebase logging level for debugging (optional but helpful)
+        setLogLevel('error');
+
         /**
-         * Selects and displays a random quote, ensuring it is not the same as the last one.
+         * Initializes Firebase and authenticates the user.
          */
-        function displayNewQuote() {
-            if (quotes.length === 0) return;
-            let randomIndex;
-            do {
-                randomIndex = Math.floor(Math.random() * quotes.length);
-            } while (randomIndex === lastIndex && quotes.length > 1);
-            const quote = quotes[randomIndex];
-            quoteTextElement.textContent = quote.text;
-            quoteAuthorElement.textContent = `- ${quote.author}`;
-            lastIndex = randomIndex;
-        }
-        /**
-         * Copies the current quote text and author to the clipboard.
-         */
-        function copyQuoteToClipboard() {
-            const quoteContent = `${quoteTextElement.textContent} ${quoteAuthorElement.textContent}`;
-            // Use execCommand for broader compatibility in sandbox environments
-            const tempInput = document.createElement('textarea');
-            tempInput.value = quoteContent;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            try {
-                document.execCommand('copy');
-                showStatusMessage("Copied successfully!");
-            } catch (err) {
-                console.error('Could not copy text: ', err);
-                showStatusMessage("Copy failed. Check console for details.");
+        async function initializeFirebase() {
+            if (!firebaseConfig) {
+                console.error("Firebase config is missing. Cannot initialize.");
+                document.getElementById('loading-spinner').innerHTML = '<p class="text-red-500">Error: Firebase configuration missing.</p>';
+                return;
             }
-            document.body.removeChild(tempInput);
+
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Sign in with custom token or anonymously
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        document.getElementById('user-id-display').textContent = `User ID: ${currentUserId}`;
+                        isAuthReady = true;
+                        // Start listeners after authentication
+                        setupListeners();
+                        render(currentView);
+                    } else {
+                        console.log("User signed out or failed to sign in.");
+                    }
+                });
+
+            } catch (error) {
+                console.error("Firebase Initialization or Auth Error:", error);
+                document.getElementById('loading-spinner').innerHTML = `<p class="text-red-500">Firebase Error: ${error.message}</p>`;
+            }
         }
+
         /**
-         * Shows a temporary status message in the UI.
-         * @param {string} message - The message to display.
+         * Generates the Firestore collection path for the current user's private data.
+         * @param {string} collectionName - Name of the collection (e.g., 'inventory').
+         * @returns {string} The full Firestore path.
          */
-        function showStatusMessage(message) {
-            statusMessage.textContent = message;
-            statusMessage.classList.remove('opacity-0');
-            statusMessage.classList.add('opacity-100');
-            // Hide the message after 2 seconds
-            setTimeout(() => {
-                statusMessage.classList.remove('opacity-100');
-                statusMessage.classList.add('opacity-0');
-            }, 2000);
+        function getCollectionPath(collectionName) {
+            return `artifacts/${appId}/users/${currentUserId}/${collectionName}`;
         }
-        // --- Event Listeners and Initial Setup ---
-        // Handle touch/click events for New Quote button
-        newQuoteBtn.addEventListener('click', displayNewQuote);
-        newQuoteBtn.addEventListener('touchend', (e) => { e.preventDefault(); displayNewQuote(); });
-        // Handle touch/click events for Copy button
-        copyBtn.addEventListener('click', copyQuoteToClipboard);
-        copyBtn.addEventListener('touchend', (e) => { e.preventDefault(); copyQuoteToClipboard(); });
-        // Display the first quote when the page loads
-        document.addEventListener('DOMContentLoaded', displayNewQuote);
+
+        /**
+         * Sets up real-time listeners for all primary collections.
+         */
+        function setupListeners() {
+            if (!isAuthReady || !db || !currentUserId) return;
+
+            // 1. Inventory Listener
+            onSnapshot(collection(db, getCollectionPath('inventory')), (snapshot) => {
+                inventory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                inventory.sort((a, b) => a.name.localeCompare(b.name));
+                console.log("Inventory updated:", inventory.length);
+                if (currentView === 'inventory' || currentView === 'purchase') render(currentView);
+            }, (error) => {
+                console.error("Inventory Snapshot Error:", error);
+            });
+
+            // 2. Clients Listener
+            onSnapshot(collection(db, getCollectionPath('clients')), (snapshot) => {
+                clients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                clients.sort((a, b) => a.name.localeCompare(b.name));
+                console.log("Clients updated:", clients.length);
+                if (currentView === 'clients' || currentView === 'purchase') render(currentView);
+            }, (error) => {
+                console.error("Clients Snapshot Error:", error);
+            });
+
+            // 3. Purchases Listener
+            onSnapshot(query(collection(db, getCollectionPath('purchases'))), (snapshot) => {
+                purchases = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                purchases.sort((a, b) => b.timestamp - a.timestamp); // Sort by newest first
+                console.log("Purchases updated:", purchases.length);
+                if (currentView === 'orders') render(currentView);
+            }, (error) => {
+                console.error("Purchases Snapshot Error:", error);
+            });
+        }
+
+
+        // --- MODAL & UI MANAGEMENT ---
+
+        const modalBackdrop = document.getElementById('modal-backdrop');
+        const modalTitle = document.getElementById('modal-title');
+        const modalInputs = document.getElementById('modal-inputs');
+        const addForm = document.getElementById('add-form');
+
+        /**
+         * Opens the modal for adding a new item/client.
+         * @param {string} type - 'inventory' or 'clients'.
+         */
+        function openModal(type) {
+            modalBackdrop.classList.remove('hidden');
+            modalBackdrop.classList.add('flex');
+            modalInputs.innerHTML = '';
+            addForm.dataset.type = type;
+
+            if (type === 'inventory') {
+                modalTitle.textContent = "Add New Product";
+                modalInputs.innerHTML = `
+                    <input type="text" id="name" placeholder="Product Name" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    <input type="number" id="price" placeholder="Price (e.g., 9.99)" step="0.01" min="0.01" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    <input type="number" id="stock" placeholder="Initial Stock" min="0" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                `;
+            } else if (type === 'clients') {
+                modalTitle.textContent = "Add New Client";
+                modalInputs.innerHTML = `
+                    <input type="text" id="name" placeholder="Client Name" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    <input type="email" id="email" placeholder="Email Address" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                `;
+            }
+        }
+
+        function closeModal() {
+            modalBackdrop.classList.add('hidden');
+            modalBackdrop.classList.remove('flex');
+            addForm.reset();
+        }
+
+        // Handle form submission for adding items
+        addForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const type = addForm.dataset.type;
+            const name = document.getElementById('name')?.value.trim();
+
+            let data = { name };
+
+            if (type === 'inventory') {
+                const price = parseFloat(document.getElementById('price').value);
+                const stock = parseInt(document.getElementById('stock').value, 10);
+                if (isNaN(price) || isNaN(stock)) return;
+                data = { name, price: parseFloat(price.toFixed(2)), stock, timestamp: Date.now() };
+            } else if (type === 'clients') {
+                const email = document.getElementById('email').value.trim();
+                data = { name, email, timestamp: Date.now() };
+            }
+
+            if (!name) return;
+
+            try {
+                await addDoc(collection(db, getCollectionPath(type)), data);
+                closeModal();
+            } catch (error) {
+                console.error(`Error adding ${type} item:`, error);
+                alert(`Failed to save. Check console for details.`);
+            }
+        });
+
+
+        // --- PURCHASE LOGIC (CORE FUNCTIONALITY) ---
+
+        /**
+         * Renders the purchase order form.
+         */
+        function renderPurchaseView() {
+            const clientOptions = clients.map(c => `<option value="${c.id}">${c.name} (${c.email})</option>`).join('');
+            const inventoryItems = inventory.filter(i => i.stock > 0);
+            const itemOptions = inventoryItems.map(i => `<option value="${i.id}" data-price="${i.price}" data-stock="${i.stock}">${i.name} (Stock: ${i.stock} / $${i.price.toFixed(2)})</option>`).join('');
+
+            document.getElementById('app-content').innerHTML = `
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">Simulate New Order</h2>
+
+                    <form id="purchase-form" class="space-y-6">
+                        <div>
+                            <label for="client-select" class="block text-sm font-medium text-gray-700 mb-1">Select Client</label>
+                            <select id="client-select" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                <option value="" disabled selected>--- Choose a Client ---</option>
+                                ${clientOptions}
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Need a new client? Go to the Clients tab.</p>
+                        </div>
+
+                        <div class="border-t pt-4">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3">Order Items</h3>
+                            <div id="item-list" class="space-y-3">
+                                <!-- Initial item row -->
+                                <div class="flex flex-col sm:flex-row gap-3 item-row" data-index="0">
+                                    <select name="item-id" required class="flex-grow p-3 border border-gray-300 rounded-lg item-select">
+                                        <option value="" disabled selected>--- Select Product ---</option>
+                                        ${itemOptions}
+                                    </select>
+                                    <input type="number" name="quantity" min="1" value="1" placeholder="Qty" required class="w-16 text-center p-3 border border-gray-300 rounded-lg item-qty">
+                                    <div class="flex-shrink-0 w-24 text-right py-3 font-medium text-gray-800 item-price">$0.00</div>
+                                </div>
+                            </div>
+                            <button type="button" id="add-item-btn" class="mt-4 flex items-center text-sm font-medium text-blue-500 hover:text-blue-600 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                                Add Another Item
+                            </button>
+                        </div>
+
+                        <div class="border-t pt-4 space-y-2">
+                            <div class="flex justify-between text-lg font-semibold">
+                                <span>TOTAL:</span>
+                                <span id="order-total" class="text-blue-600">$0.00</span>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="purchase-btn" class="w-full py-3 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition shadow-lg shadow-green-200/50">
+                            Simulate Purchase (Reduce Stock)
+                        </button>
+                    </form>
+                </div>
+            `;
+
+            setupPurchaseFormEvents(inventoryItems);
+        }
+
+        /**
+         * Attaches event listeners for the purchase form (input changes, adding rows, submission).
+         * @param {Array} inventoryItems - Current inventory items for reference.
+         */
+        function setupPurchaseFormEvents(inventoryItems) {
+            const form = document.getElementById('purchase-form');
+            const itemList = document.getElementById('item-list');
+            const addItemBtn = document.getElementById('add-item-btn');
+
+            let itemIndex = 0;
+
+            const calculateTotal = () => {
+                let total = 0;
+                const rows = itemList.querySelectorAll('.item-row');
+                rows.forEach(row => {
+                    const select = row.querySelector('.item-select');
+                    const qtyInput = row.querySelector('.item-qty');
+                    const priceDisplay = row.querySelector('.item-price');
+
+                    const selectedItem = inventoryItems.find(i => i.id === select.value);
+                    const qty = parseInt(qtyInput.value, 10);
+
+                    if (selectedItem && qty > 0) {
+                        const subtotal = selectedItem.price * qty;
+                        total += subtotal;
+                        priceDisplay.textContent = `$${subtotal.toFixed(2)}`;
+
+                        // Stock check logic
+                        if (qty > selectedItem.stock) {
+                            qtyInput.classList.add('border-red-500');
+                            qtyInput.title = `Only ${selectedItem.stock} in stock!`;
+                        } else {
+                            qtyInput.classList.remove('border-red-500');
+                            qtyInput.title = '';
+                        }
+                    } else {
+                        priceDisplay.textContent = `$0.00`;
+                        qtyInput.classList.remove('border-red-500');
+                        qtyInput.title = '';
+                    }
+                });
+
+                document.getElementById('order-total').textContent = `$${total.toFixed(2)}`;
+                return total;
+            };
+
+            const updateItemRow = (row) => {
+                const select = row.querySelector('.item-select');
+                const qtyInput = row.querySelector('.item-qty');
+                const itemId = select.value;
+                const selectedItem = inventoryItems.find(i => i.id === itemId);
+
+                if (selectedItem) {
+                    qtyInput.max = selectedItem.stock;
+                    if (parseInt(qtyInput.value, 10) > selectedItem.stock) {
+                        qtyInput.value = selectedItem.stock > 0 ? selectedItem.stock : 1;
+                    }
+                    if (selectedItem.stock === 0) {
+                        select.classList.add('bg-red-100');
+                        qtyInput.value = 0;
+                        qtyInput.setAttribute('readonly', true);
+                    } else {
+                        select.classList.remove('bg-red-100');
+                        qtyInput.removeAttribute('readonly');
+                    }
+                } else {
+                    qtyInput.value = 1;
+                    qtyInput.max = 9999;
+                }
+                calculateTotal();
+            }
+
+            const addNewItemRow = () => {
+                itemIndex++;
+                const itemOptions = inventoryItems.map(i => `<option value="${i.id}" data-price="${i.price}" data-stock="${i.stock}">${i.name} (Stock: ${i.stock} / $${i.price.toFixed(2)})</option>`).join('');
+
+                const newRow = document.createElement('div');
+                newRow.className = 'flex flex-col sm:flex-row gap-3 item-row';
+                newRow.dataset.index = itemIndex;
+                newRow.innerHTML = `
+                    <select name="item-id" required class="flex-grow p-3 border border-gray-300 rounded-lg item-select">
+                        <option value="" disabled selected>--- Select Product ---</option>
+                        ${itemOptions}
+                    </select>
+                    <input type="number" name="quantity" min="1" value="1" placeholder="Qty" required class="w-16 text-center p-3 border border-gray-300 rounded-lg item-qty">
+                    <div class="flex-shrink-0 w-24 text-right py-3 font-medium text-gray-800 item-price">$0.00</div>
+                    <button type="button" class="text-red-500 hover:text-red-700 flex-shrink-0 remove-item-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </button>
+                `;
+                itemList.appendChild(newRow);
+
+                newRow.querySelector('.item-select').addEventListener('change', () => updateItemRow(newRow));
+                newRow.querySelector('.item-qty').addEventListener('input', () => updateItemRow(newRow));
+                newRow.querySelector('.remove-item-btn').addEventListener('click', () => {
+                    newRow.remove();
+                    calculateTotal();
+                });
+            };
+
+            // Attach initial event listeners
+            itemList.querySelectorAll('.item-row').forEach(row => {
+                row.querySelector('.item-select').addEventListener('change', () => updateItemRow(row));
+                row.querySelector('.item-qty').addEventListener('input', () => updateItemRow(row));
+            });
+
+            addItemBtn.addEventListener('click', addNewItemRow);
+
+            form.addEventListener('input', calculateTotal);
+
+            // Handle purchase submission
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                document.getElementById('purchase-btn').disabled = true;
+                document.getElementById('purchase-btn').textContent = "Processing...";
+
+                const clientId = document.getElementById('client-select').value;
+                if (!clientId) {
+                    alert('Please select a client.');
+                    document.getElementById('purchase-btn').disabled = false;
+                    document.getElementById('purchase-btn').textContent = "Simulate Purchase (Reduce Stock)";
+                    return;
+                }
+
+                const purchaseItems = [];
+                let hasStockError = false;
+
+                itemList.querySelectorAll('.item-row').forEach(row => {
+                    const itemId = row.querySelector('.item-select').value;
+                    const qty = parseInt(row.querySelector('.item-qty').value, 10);
+
+                    if (itemId && qty > 0) {
+                        const item = inventoryItems.find(i => i.id === itemId);
+                        if (item) {
+                            if (qty > item.stock) {
+                                hasStockError = true;
+                            }
+                            purchaseItems.push({
+                                id: itemId,
+                                name: item.name,
+                                price: item.price,
+                                quantity: qty,
+                                subtotal: item.price * qty
+                            });
+                        }
+                    }
+                });
+
+                if (purchaseItems.length === 0) {
+                    alert('Please add at least one item to the order.');
+                    document.getElementById('purchase-btn').disabled = false;
+                    document.getElementById('purchase-btn').textContent = "Simulate Purchase (Reduce Stock)";
+                    return;
+                }
+
+                if (hasStockError) {
+                    alert('Cannot complete order: Insufficient stock for one or more items. Please adjust quantities.');
+                    document.getElementById('purchase-btn').disabled = false;
+                    document.getElementById('purchase-btn').textContent = "Simulate Purchase (Reduce Stock)";
+                    return;
+                }
+
+                const client = clients.find(c => c.id === clientId);
+                const total = calculateTotal();
+
+                await runPurchaseTransaction(clientId, client.name, purchaseItems, total);
+
+                document.getElementById('purchase-btn').disabled = false;
+                document.getElementById('purchase-btn').textContent = "Simulate Purchase (Reduce Stock)";
+                form.reset();
+                itemList.innerHTML = ''; // Clear old rows
+                itemIndex = -1; // Reset index to make the next call 0
+                addNewItemRow(); // Add a single fresh row
+                calculateTotal(); // Recalculate and reset display
+                alert('Purchase Simulated Successfully! Inventory has been updated.');
+                render('orders'); // Switch to orders view
+            });
+
+            // Initial calculation
+            updateItemRow(itemList.querySelector('.item-row'));
+        }
+
+        /**
+         * Runs a Firestore Transaction to atomically update inventory stock and log the purchase.
+         * @param {string} clientId - The ID of the purchasing client.
+         * @param {string} clientName - The name of the purchasing client.
+         * @param {Array<Object>} items - Array of { id, quantity, price, subtotal }
+         * @param {number} total - The total amount of the purchase.
+         */
+        async function runPurchaseTransaction(clientId, clientName, items, total) {
+            const inventoryCollection = getCollectionPath('inventory');
+            const purchasesCollection = getCollectionPath('purchases');
+
+            try {
+                await runTransaction(db, async (transaction) => {
+                    // 1. Check stock (already checked in UI but essential for transaction integrity)
+                    for (const item of items) {
+                        const itemRef = doc(db, inventoryCollection, item.id);
+                        const itemDoc = await transaction.get(itemRef);
+
+                        if (!itemDoc.exists()) {
+                            throw new Error(`Item ${item.name} not found.`);
+                        }
+
+                        const currentStock = itemDoc.data().stock;
+                        if (currentStock < item.quantity) {
+                            throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.quantity}.`);
+                        }
+                    }
+
+                    // 2. Decrement inventory stock
+                    for (const item of items) {
+                        const itemRef = doc(db, inventoryCollection, item.id);
+                        // Using updateDoc with increment is generally safer for concurrent writes,
+                        // but since we read the stock within the transaction, we can write the new value
+                        // which is more explicit for a controlled simulation environment.
+                        const newStock = inventory.find(i => i.id === item.id).stock - item.quantity;
+                        transaction.update(itemRef, { stock: newStock });
+                    }
+
+                    // 3. Log the purchase
+                    const purchaseData = {
+                        clientId: clientId,
+                        clientName: clientName,
+                        items: items,
+                        total: total,
+                        timestamp: Date.now(),
+                    };
+
+                    // We add the purchase document
+                    const purchaseRef = doc(collection(db, purchasesCollection));
+                    transaction.set(purchaseRef, purchaseData);
+                });
+
+                console.log("Transaction successfully committed!");
+            } catch (e) {
+                console.error("Transaction failed: ", e);
+                alert(`Order processing failed: ${e.message}`);
+                throw e; // Re-throw to indicate failure
+            }
+        }
+
+
+        // --- RENDERING VIEWS ---
+
+        const views = {
+            inventory: () => `
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-800">Inventory (${inventory.length})</h2>
+                        <button onclick="openModal('inventory')" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition shadow-md shadow-blue-200/50">
+                            Add Product
+                        </button>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                        ${inventory.length === 0 ? '<p class="p-6 text-gray-500 text-center">No products found. Add one to get started!</p>' :
+                            `<div class="divide-y divide-gray-100 scrollable-list max-h-[70vh] overflow-y-auto">
+                                ${inventory.map(i => `
+                                    <div class="p-4 flex justify-between items-center hover:bg-gray-50 transition">
+                                        <div>
+                                            <p class="font-semibold text-gray-800">${i.name}</p>
+                                            <p class="text-sm ${i.stock < 5 ? 'text-red-500' : 'text-gray-500'}">Stock: ${i.stock}</p>
+                                        </div>
+                                        <p class="text-lg font-bold text-green-600">$${i.price.toFixed(2)}</p>
+                                    </div>
+                                `).join('')}
+                            </div>`
+                        }
+                    </div>
+                </div>
+            `,
+            clients: () => `
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-800">Clients (${clients.length})</h2>
+                        <button onclick="openModal('clients')" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition shadow-md shadow-blue-200/50">
+                            Add Client
+                        </button>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                        ${clients.length === 0 ? '<p class="p-6 text-gray-500 text-center">No clients found. Add one to start tracking sales!</p>' :
+                            `<div class="divide-y divide-gray-100 scrollable-list max-h-[70vh] overflow-y-auto">
+                                ${clients.map(c => `
+                                    <div class="p-4 hover:bg-gray-50 transition">
+                                        <p class="font-semibold text-gray-800">${c.name}</p>
+                                        <p class="text-sm text-gray-500">${c.email}</p>
+                                    </div>
+                                `).join('')}
+                            </div>`
+                        }
+                    </div>
+                </div>
+            `,
+            purchase: () => {
+                if (!isAuthReady) return '<p class="text-center p-8 text-gray-500">Loading...</p>';
+                // Logic is handled in renderPurchaseView and setupPurchaseFormEvents
+                return '<div id="purchase-container"></div>';
+            },
+            orders: () => `
+                <div class="space-y-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Orders (${purchases.length})</h2>
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                        ${purchases.length === 0 ? '<p class="p-6 text-gray-500 text-center">No orders recorded yet. Make a purchase!</p>' :
+                            `<div class="divide-y divide-gray-100 scrollable-list max-h-[70vh] overflow-y-auto">
+                                ${purchases.map(p => {
+                                    const date = new Date(p.timestamp).toLocaleString();
+                                    const totalItems = p.items.reduce((sum, item) => sum + item.quantity, 0);
+                                    return `
+                                        <div class="p-4 hover:bg-gray-50 transition">
+                                            <div class="flex justify-between items-center">
+                                                <p class="font-bold text-lg text-gray-800">${p.clientName}</p>
+                                                <p class="text-xl font-extrabold text-red-600">$${p.total.toFixed(2)}</p>
+                                            </div>
+                                            <p class="text-sm text-gray-500 mt-1">${totalItems} item${totalItems > 1 ? 's' : ''} purchased on ${date}</p>
+                                            <ul class="text-xs text-gray-600 mt-2 space-y-0.5 border-t border-dashed pt-2">
+                                                ${p.items.map(item => `
+                                                    <li>${item.quantity} x ${item.name} @ $${item.price.toFixed(2)}</li>
+                                                `).join('')}
+                                            </ul>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>`
+                        }
+                    </div>
+                </div>
+            `,
+        };
+
+        /**
+         * Main render function to switch views.
+         * @param {string} view - The view key ('inventory', 'clients', 'purchase', 'orders').
+         */
+        function render(view) {
+            currentView = view;
+            const contentDiv = document.getElementById('app-content');
+            const tabButtons = document.querySelectorAll('.tab-button');
+
+            // Update tab button styles
+            tabButtons.forEach(btn => {
+                if (btn.dataset.view === view) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            // Render content
+            contentDiv.innerHTML = views[view]();
+
+            // Special case for purchase view which requires dynamic event listeners
+            if (view === 'purchase') {
+                const purchaseContainer = document.getElementById('purchase-container');
+                if (purchaseContainer) {
+                    // This calls the specific purchase logic that needs the DOM elements
+                    // to exist before setting up events.
+                    purchaseContainer.innerHTML = views[view]();
+                    renderPurchaseView();
+                }
+            }
+        }
+
+        // Attach event listeners for navigation
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const view = e.currentTarget.dataset.view;
+                render(view);
+            });
+        });
+
+        // Expose functions globally for HTML access
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+        window.render = render; // Expose render for initial setup
+
+        // Initial setup call
+        initializeFirebase();
+
     </script>
 </body>
 </html>
